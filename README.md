@@ -2,7 +2,7 @@
 
 A static site that tracks four friends' NBA playoff bracket picks and scores them live against real playoff results.
 
-**Live site:** _add Render URL after deploy_
+**Live site:** https://kirillshmilovich.github.io/nba_playoffs_bracket/
 
 ## Participants
 
@@ -31,15 +31,11 @@ python3 -m http.server 8000
 # visit http://localhost:8000
 ```
 
-## Deploy (Render)
+## Deploy
 
-1. Push this repo to GitHub.
-2. Render dashboard → **New +** → **Static Site** → connect the repo.
-3. Build command: _(leave empty)_
-4. Publish directory: `.`
-5. Deploy. Every push to `main` auto-deploys.
+Hosted on **GitHub Pages**. Settings → Pages → Source: *Deploy from a branch* → `main` / root. The `.nojekyll` file disables Jekyll so files are served as-is. Every push to `main` auto-deploys.
 
-`render.yaml` is included for reproducibility.
+`render.yaml` is also included for deploying on Render as a Static Site if you'd prefer.
 
 ## Updating picks
 
