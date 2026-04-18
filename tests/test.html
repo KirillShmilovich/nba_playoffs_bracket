@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Bracket Tracker Tests</title>
+<style>body{font-family:monospace;padding:20px}.pass{color:green}.fail{color:red;font-weight:bold}</style>
+</head>
+<body>
+<h1>Bracket Tracker Tests</h1>
+<div id="results"></div>
+<script type="module">
+import { scoreSeries, scoreBracket, isEliminated, ROUND_POINTS } from '../scoring.js';
+import { normalizeEspn, buildSeriesFromGames } from '../espn.js';
+
+const results = document.getElementById('results');
+let passed = 0, failed = 0;
+
+function assertEq(actual, expected, label) {
+  const ok = JSON.stringify(actual) === JSON.stringify(expected);
+  const div = document.createElement('div');
+  div.textContent = `${ok ? 'PASS' : 'FAIL'}: ${label} — expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`;
+  div.className = ok ? 'pass' : 'fail';
+  results.appendChild(div);
+  ok ? passed++ : failed++;
+}
+
+// --- scoreSeries tests ---
+assertEq(
+  scoreSeries({ winner: "OKC", games: 5 }, { winner: "OKC", games: 5, complete: true }, "round1"),
+  { points: 2, status: "correct-exact" },
+  "round1: correct winner + exact length = 2pt"
+);
+assertEq(
+  scoreSeries({ winner: "OKC", games: 5 }, { winner: "OKC", games: 6, complete: true }, "round1"),
+  { points: 1, status: "correct-winner" },
+  "round1: correct winner, wrong length = 1pt"
+);
+assertEq(
+  scoreSeries({ winner: "OKC", games: 5 }, { winner: "PHX", games: 6, complete: true }, "round1"),
+  { points: 0, status: "wrong" },
+  "round1: wrong winner = 0pt"
+);
+assertEq(
+  scoreSeries({ winner: "OKC", games: 5 }, { winner: null, games: null, complete: false }, "round1"),
+  { points: 0, status: "pending" },
+  "round1: incomplete = pending"
+);
+assertEq(
+  scoreSeries({ winner: "BOS", games: 6 }, { winner: "BOS", games: 6, complete: true }, "finals"),
+  { points: 11, status: "correct-exact" },
+  "finals: correct winner + exact = 11pt (8+3)"
+);
+assertEq(
+  scoreSeries({ winner: "SAS", games: 6 }, { winner: "DET", games: 5, complete: true }, "confFinals"),
+  { points: 0, status: "wrong" },
+  "confFinals: wrong = 0pt"
+);
+assertEq(
+  scoreSeries({ winner: "DET", games: 5 }, { winner: "DET", games: 6, complete: true }, "round2"),
+  { points: 2, status: "correct-winner" },
+  "round2: correct winner, wrong length = 2pt"
+);
+
+// --- isEliminated tests ---
+const liveElim = {
+  round1: [
+    { matchup: ["OKC","PHX"], winner: "OKC", loser: "PHX", games: 4, complete: true },
+    { matchup: ["HOU","LAL"], winner: "LAL", loser: "HOU", games: 6, complete: true },
+    { matchup: ["DEN","MIN"], winner: null,  loser: null,  games: null, complete: false }
+  ],
+  round2: [],
+  confFinals: [],
+  finals: null
+};
+
+assertEq(isEliminated("PHX", liveElim), true,  "PHX eliminated in round1");
+assertEq(isEliminated("HOU", liveElim), true,  "HOU eliminated in round1");
+assertEq(isEliminated("OKC", liveElim), false, "OKC still alive");
+assertEq(isEliminated("DEN", liveElim), false, "DEN series incomplete, not eliminated");
+assertEq(isEliminated("BOS", liveElim), false, "BOS unknown in live data, not eliminated");
+
+// --- scoreBracket tests ---
+const samplePicks = {
+  round1: [
+    { winner: "OKC", loser: "PHX", games: 5 },
+    { winner: "HOU", loser: "LAL", games: 6 }
+  ],
+  round2: [
+    { winner: "OKC", loser: "HOU", games: 4 }
+  ],
+  confFinals: [],
+  finals: { winner: "OKC", loser: "BOS", games: 5 }
+};
+
+const liveAllPending = { round1: [], round2: [], confFinals: [], finals: null };
+
+const scoredPending = scoreBracket(samplePicks, liveAllPending);
+assertEq(scoredPending.current, 0, "all pending: current = 0");
+assertEq(scoredPending.max, 18, "all pending: max = 18");
+
+const liveR1Done = {
+  round1: [
+    { matchup: ["OKC","PHX"], winner: "OKC", loser: "PHX", games: 5, complete: true },
+    { matchup: ["HOU","LAL"], winner: "LAL", loser: "HOU", games: 6, complete: true }
+  ],
+  round2: [],
+  confFinals: [],
+  finals: null
+};
+
+const scoredR1 = scoreBracket(samplePicks, liveR1Done);
+assertEq(scoredR1.current, 2, "R1 done: current = 2 (OKC exact)");
+assertEq(scoredR1.max, 13, "R1 done: max = current + alive future picks");
+assertEq(scoredR1.correctCount, 1, "R1 done: 1 correct series");
+assertEq(scoredR1.totalCompleted, 2, "R1 done: 2 completed series");
+
+// --- normalizeEspn tests ---
+assertEq(
+  normalizeEspn(null),
+  { round1: [], round2: [], confFinals: [], finals: null },
+  "normalizeEspn: null → empty"
+);
+assertEq(
+  normalizeEspn({}),
+  { round1: [], round2: [], confFinals: [], finals: null },
+  "normalizeEspn: empty object → empty"
+);
+
+// Fake 5 completed OKC-PHX round 1 games: OKC wins 4-1
+function fakeEvent(teamA, teamB, winner, headline, seasonType=3, completed=true) {
+  return {
+    season: { type: seasonType },
+    competitions: [{
+      status: { type: { completed } },
+      notes: [{ headline }],
+      competitors: [
+        { team: { abbreviation: teamA }, winner: winner === teamA },
+        { team: { abbreviation: teamB }, winner: winner === teamB }
+      ]
+    }]
+  };
+}
+
+const scoreboardSample = {
+  events: [
+    fakeEvent("OKC","PHX","OKC","West 1st Round - Game 1"),
+    fakeEvent("OKC","PHX","OKC","West 1st Round - Game 2"),
+    fakeEvent("OKC","PHX","PHX","West 1st Round - Game 3"),
+    fakeEvent("OKC","PHX","OKC","West 1st Round - Game 4"),
+    fakeEvent("OKC","PHX","OKC","West 1st Round - Game 5")
+  ]
+};
+const out = normalizeEspn(scoreboardSample);
+assertEq(out.round1.length, 1, "normalizeEspn: 1 series in round1");
+assertEq(out.round1[0].winner, "OKC", "normalizeEspn: winner OKC");
+assertEq(out.round1[0].loser, "PHX", "normalizeEspn: loser PHX");
+assertEq(out.round1[0].games, 5, "normalizeEspn: 5 games");
+assertEq(out.round1[0].complete, true, "normalizeEspn: completed");
+
+// In-progress series (only 2 games played)
+const inProgressSample = {
+  events: [
+    fakeEvent("HOU","LAL","HOU","West 1st Round - Game 1"),
+    fakeEvent("HOU","LAL","LAL","West 1st Round - Game 2")
+  ]
+};
+const outIP = normalizeEspn(inProgressSample);
+assertEq(outIP.round1.length, 1, "normalizeEspn: 1 in-progress series");
+assertEq(outIP.round1[0].complete, false, "normalizeEspn: in-progress complete=false");
+assertEq(outIP.round1[0].currentScore, "1-1", "normalizeEspn: currentScore 1-1");
+
+// Non-playoff games should be excluded
+const regSeasonSample = {
+  events: [ fakeEvent("OKC","PHX","OKC","Regular Season", 2) ]
+};
+assertEq(normalizeEspn(regSeasonSample).round1.length, 0, "normalizeEspn: regular season excluded");
+
+// NY → NYK mapping
+const nyMapping = {
+  events: [
+    fakeEvent("NY","ATL","NY","East 1st Round - Game 1"),
+    fakeEvent("NY","ATL","NY","East 1st Round - Game 2"),
+    fakeEvent("NY","ATL","NY","East 1st Round - Game 3"),
+    fakeEvent("NY","ATL","NY","East 1st Round - Game 4")
+  ]
+};
+const outNY = normalizeEspn(nyMapping);
+assertEq(outNY.round1.length, 1, "normalizeEspn: NY mapped to NYK");
+assertEq(outNY.round1[0].winner, "NYK", "normalizeEspn: winner NYK");
+assertEq(outNY.round1[0].loser, "ATL", "normalizeEspn: loser ATL");
+assertEq(outNY.round1[0].games, 4, "normalizeEspn: sweep 4 games");
+
+document.title = `${failed === 0 ? 'PASS' : 'FAIL'} ${passed}/${passed + failed}`;
+results.insertAdjacentHTML('afterbegin', `<h2>${passed} passed, ${failed} failed</h2>`);
+</script>
+</body>
+</html>
