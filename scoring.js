@@ -9,14 +9,20 @@ export function scoreSeries(pick, actual, round) {
   if (!actual || !actual.complete) {
     return { points: 0, status: "pending" };
   }
-  if (actual.winner !== pick.winner) {
-    return { points: 0, status: "wrong" };
-  }
   const pts = ROUND_POINTS[round];
-  if (actual.games === pick.games) {
+  const winnerCorrect = actual.winner === pick.winner;
+  const lengthCorrect = actual.games === pick.games;
+
+  if (winnerCorrect && lengthCorrect) {
     return { points: pts.winner + pts.lengthBonus, status: "correct-exact" };
   }
-  return { points: pts.winner, status: "correct-winner" };
+  if (winnerCorrect) {
+    return { points: pts.winner, status: "correct-winner" };
+  }
+  if (lengthCorrect) {
+    return { points: pts.lengthBonus, status: "correct-length" };
+  }
+  return { points: 0, status: "wrong" };
 }
 
 export function isEliminated(team, live) {
@@ -88,4 +94,53 @@ export function scoreBracket(picks, live) {
   }
 
   return { current, max, correctCount, totalCompleted, perPick };
+}
+
+export function buildSeriesView(picksByName, live) {
+  const rounds = ["round1", "round2", "confFinals", "finals"];
+  const out = {};
+  for (const round of rounds) {
+    const matchups = new Map();
+
+    const liveList = round === "finals"
+      ? (live.finals ? [live.finals] : [])
+      : (live[round] || []);
+    for (const s of liveList) {
+      if (!s || !s.matchup) continue;
+      const key = s.matchup.slice().sort().join("|");
+      matchups.set(key, { matchup: s.matchup.slice().sort(), actual: s, picks: [] });
+    }
+
+    for (const [name, picks] of Object.entries(picksByName)) {
+      const picksInRound = round === "finals"
+        ? (picks.finals ? [picks.finals] : [])
+        : (picks[round] || []);
+      for (const p of picksInRound) {
+        const key = [p.winner, p.loser].slice().sort().join("|");
+        if (!matchups.has(key)) {
+          matchups.set(key, {
+            matchup: [p.winner, p.loser].slice().sort(),
+            actual: null,
+            picks: []
+          });
+        }
+        const entry = matchups.get(key);
+        const result = scoreSeries(p, entry.actual, round);
+        if (entry.actual && !entry.actual.complete) {
+          if (isEliminated(p.winner, live) || isEliminated(p.loser, live)) {
+            result.status = "eliminated";
+          }
+        }
+        entry.picks.push({ name, pick: p, result });
+      }
+    }
+
+    out[round] = [...matchups.values()].sort((a, b) => {
+      const aDone = a.actual && a.actual.complete ? 0 : 1;
+      const bDone = b.actual && b.actual.complete ? 0 : 1;
+      if (aDone !== bDone) return aDone - bDone;
+      return a.matchup[0].localeCompare(b.matchup[0]);
+    });
+  }
+  return out;
 }

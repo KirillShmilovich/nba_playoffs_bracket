@@ -36,7 +36,22 @@ assertEq(
 assertEq(
   scoreSeries({ winner: "OKC", games: 5 }, { winner: "PHX", games: 6, complete: true }, "round1"),
   { points: 0, status: "wrong" },
-  "round1: wrong winner = 0pt"
+  "round1: wrong winner + wrong length = 0pt"
+);
+assertEq(
+  scoreSeries({ winner: "OKC", games: 6 }, { winner: "PHX", games: 6, complete: true }, "round1"),
+  { points: 1, status: "correct-length" },
+  "round1: wrong winner but correct length = 1pt (length bonus)"
+);
+assertEq(
+  scoreSeries({ winner: "BOS", games: 7 }, { winner: "NYK", games: 7, complete: true }, "confFinals"),
+  { points: 2, status: "correct-length" },
+  "confFinals: wrong winner but correct length = 2pt (length bonus only)"
+);
+assertEq(
+  scoreSeries({ winner: "BOS", games: 6 }, { winner: "DAL", games: 6, complete: true }, "finals"),
+  { points: 3, status: "correct-length" },
+  "finals: wrong winner but correct length = 3pt (length bonus only)"
 );
 assertEq(
   scoreSeries({ winner: "OKC", games: 5 }, { winner: null, games: null, complete: false }, "round1"),
@@ -107,9 +122,11 @@ const liveR1Done = {
 };
 
 const scoredR1 = scoreBracket(samplePicks, liveR1Done);
-assertEq(scoredR1.current, 2, "R1 done: current = 2 (OKC exact)");
-assertEq(scoredR1.max, 13, "R1 done: max = current + alive future picks");
-assertEq(scoredR1.correctCount, 1, "R1 done: 1 correct series");
+// OKC in 5 = +2 (exact), HOU in 6 (wrong winner, right length) = +1 length bonus
+assertEq(scoredR1.current, 3, "R1 done: current = 3 (OKC exact +2, HOU length-only +1)");
+// max = 2 (completed exact) + 1 (completed length-only) + 0 (R2 pick has eliminated HOU) + 11 (finals alive)
+assertEq(scoredR1.max, 14, "R1 done: max includes length-only + alive future picks");
+assertEq(scoredR1.correctCount, 1, "R1 done: 1 correct-winner series (length-only doesn't count)");
 assertEq(scoredR1.totalCompleted, 2, "R1 done: 2 completed series");
 
 // --- normalizeEspn tests ---

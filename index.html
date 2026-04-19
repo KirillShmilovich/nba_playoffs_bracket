@@ -37,12 +37,24 @@
   </section>
 
   <section class="brackets-section">
-    <h2 class="section-heading">The Brackets</h2>
-    <div id="brackets" class="brackets-grid"></div>
+    <div class="brackets-head">
+      <h2 class="section-heading">The Brackets</h2>
+      <div class="view-toggle" role="tablist" aria-label="Bracket view">
+        <button type="button" data-view="players" class="active" aria-pressed="true">By Player</button>
+        <button type="button" data-view="series" aria-pressed="false">By Series</button>
+      </div>
+    </div>
+    <div id="view-players">
+      <div id="brackets" class="brackets-grid"></div>
+    </div>
+    <div id="view-series" hidden>
+      <div id="series-view" class="series-view"></div>
+    </div>
   </section>
 
   <footer class="colophon">
     <p>Scoring: R1 1pt / R2 2pt / CF 4pt / F 8pt · series-length bonus: +1 / +1 / +2 / +3. Max 51.</p>
+    <p>Exact length bonus pays out even if the winner pick is wrong.</p>
     <p>Data: ESPN. Updates on page refresh.</p>
   </footer>
 

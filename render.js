@@ -3,6 +3,7 @@ import { TEAM_NAMES } from './picks.js';
 const STATUS_ICON = {
   "correct-exact":  "✓",
   "correct-winner": "✓",
+  "correct-length": "½",
   "wrong":          "✗",
   "pending":        "·",
   "eliminated":     "✗"
@@ -93,4 +94,88 @@ export function renderLeaderboard(rows) {
     `;
   }).join("");
   return `<div class="leaderboard">${header}${body}</div>`;
+}
+
+function seriesStatusLabel(actual) {
+  if (!actual) return "Not in play";
+  if (actual.complete) {
+    return `${teamDisplay(actual.winner)} def. ${teamDisplay(actual.loser)} in ${actual.games}`;
+  }
+  const [a, b] = actual.matchup;
+  return `In progress · ${a} ${actual.currentScore || ""} ${b}`;
+}
+
+function seriesStatusClass(actual) {
+  if (!actual) return "idle";
+  if (actual.complete) return "done";
+  return "live";
+}
+
+function playerRow(p) {
+  const cls = `series-player-row ${p.result.status}`;
+  const icon = STATUS_ICON[p.result.status] || "·";
+  const ptsText = p.result.points > 0
+    ? `+${p.result.points}`
+    : (p.result.status === "pending" ? "—" : "0");
+  return `
+    <div class="${cls}">
+      <span class="sp-icon">${icon}</span>
+      <span class="sp-name">${p.name}</span>
+      <span class="sp-pick"><strong>${teamDisplay(p.pick.winner)}</strong> in ${p.pick.games}</span>
+      <span class="sp-pts">${ptsText}</span>
+    </div>
+  `;
+}
+
+function seriesCard(entry, roundLabel) {
+  const [a, b] = entry.matchup;
+  const statusCls = seriesStatusClass(entry.actual);
+  const statusLabel = seriesStatusLabel(entry.actual);
+  const picked = entry.picks.length;
+
+  const picks = entry.picks
+    .slice()
+    .sort((x, y) => y.result.points - x.result.points || x.name.localeCompare(y.name))
+    .map(playerRow)
+    .join("");
+
+  const emptyNote = picked === 0
+    ? `<div class="series-empty">No one picked this matchup</div>`
+    : "";
+
+  return `
+    <details class="series-card ${statusCls}">
+      <summary class="series-summary">
+        <span class="series-round">${roundLabel}</span>
+        <span class="series-matchup">
+          <strong>${teamDisplay(a)}</strong>
+          <span class="vs">vs</span>
+          <strong>${teamDisplay(b)}</strong>
+        </span>
+        <span class="series-status">${statusLabel}</span>
+        <span class="series-count">${picked} pick${picked === 1 ? "" : "s"}</span>
+        <span class="series-chevron">▾</span>
+      </summary>
+      <div class="series-body">
+        ${picks}
+        ${emptyNote}
+      </div>
+    </details>
+  `;
+}
+
+export function renderSeriesView(seriesByRound) {
+  const rounds = ["round1", "round2", "confFinals", "finals"];
+  const sections = rounds.map(round => {
+    const entries = seriesByRound[round] || [];
+    if (!entries.length) return "";
+    const cards = entries.map(e => seriesCard(e, ROUND_LABELS[round])).join("");
+    return `
+      <div class="series-round-section">
+        <h3 class="series-round-heading">${ROUND_LABELS[round]}</h3>
+        <div class="series-stack">${cards}</div>
+      </div>
+    `;
+  }).join("");
+  return sections || `<p class="series-empty-state">No series yet — check back once games begin.</p>`;
 }

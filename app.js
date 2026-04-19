@@ -1,11 +1,12 @@
 import { PICKS } from './picks.js';
 import { fetchLiveResults } from './espn.js';
-import { scoreBracket } from './scoring.js';
-import { renderLeaderboard, renderBracket } from './render.js';
+import { scoreBracket, buildSeriesView } from './scoring.js';
+import { renderLeaderboard, renderBracket, renderSeriesView } from './render.js';
 
 const CACHE_KEY = 'nba_bracket_live_v1';
 const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const EMPTY_LIVE = { round1: [], round2: [], confFinals: [], finals: null };
+const VIEW_KEY = 'nba_bracket_view';
 
 function showBanner(msg) {
   const el = document.getElementById('fetch-banner');
@@ -37,6 +38,32 @@ function loadCache() {
 function formatTimestamp(ms) {
   const d = new Date(ms);
   return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function getView() {
+  try {
+    return localStorage.getItem(VIEW_KEY) || 'players';
+  } catch (_) { return 'players'; }
+}
+
+function setView(view) {
+  try { localStorage.setItem(VIEW_KEY, view); } catch (_) {}
+  const playersPanel = document.getElementById('view-players');
+  const seriesPanel = document.getElementById('view-series');
+  const isSeries = view === 'series';
+  playersPanel.hidden = isSeries;
+  seriesPanel.hidden = !isSeries;
+
+  for (const btn of document.querySelectorAll('.view-toggle button')) {
+    btn.classList.toggle('active', btn.dataset.view === view);
+    btn.setAttribute('aria-pressed', btn.dataset.view === view ? 'true' : 'false');
+  }
+}
+
+function wireToggle() {
+  for (const btn of document.querySelectorAll('.view-toggle button')) {
+    btn.addEventListener('click', () => setView(btn.dataset.view));
+  }
 }
 
 async function main() {
@@ -71,6 +98,12 @@ async function main() {
 
   document.getElementById('leaderboard').innerHTML = renderLeaderboard(rows);
   document.getElementById('brackets').innerHTML = bracketsHtml.join('');
+
+  const seriesView = buildSeriesView(PICKS, live);
+  document.getElementById('series-view').innerHTML = renderSeriesView(seriesView);
+
+  wireToggle();
+  setView(getView());
 }
 
 main();
