@@ -101,6 +101,7 @@ export function buildSeriesView(picksByName, live) {
   const out = {};
   for (const round of rounds) {
     const matchups = new Map();
+    let order = 0;
 
     const liveList = round === "finals"
       ? (live.finals ? [live.finals] : [])
@@ -108,7 +109,7 @@ export function buildSeriesView(picksByName, live) {
     for (const s of liveList) {
       if (!s || !s.matchup) continue;
       const key = s.matchup.slice().sort().join("|");
-      matchups.set(key, { matchup: s.matchup.slice().sort(), actual: s, picks: [] });
+      matchups.set(key, { matchup: s.matchup.slice().sort(), actual: s, picks: [], order: order++ });
     }
 
     for (const [name, picks] of Object.entries(picksByName)) {
@@ -121,7 +122,8 @@ export function buildSeriesView(picksByName, live) {
           matchups.set(key, {
             matchup: [p.winner, p.loser].slice().sort(),
             actual: null,
-            picks: []
+            picks: [],
+            order: order++
           });
         }
         const entry = matchups.get(key);
@@ -136,10 +138,16 @@ export function buildSeriesView(picksByName, live) {
     }
 
     out[round] = [...matchups.values()].sort((a, b) => {
-      const aDone = a.actual && a.actual.complete ? 0 : 1;
-      const bDone = b.actual && b.actual.complete ? 0 : 1;
-      if (aDone !== bDone) return aDone - bDone;
-      return a.matchup[0].localeCompare(b.matchup[0]);
+      const rank = entry => {
+        if (entry.actual && !entry.actual.complete) return 0;
+        if (entry.actual && entry.actual.complete) return 1;
+        if (entry.picks.some(p => p.result.status !== "eliminated")) return 2;
+        return 3;
+      };
+      const aRank = rank(a);
+      const bRank = rank(b);
+      if (aRank !== bRank) return aRank - bRank;
+      return a.order - b.order;
     });
   }
   return out;

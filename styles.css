@@ -343,7 +343,7 @@ body {
   gap: 36px;
   max-width: 1100px;
 }
-.series-round-section { display: flex; flex-direction: column; gap: 14px; }
+.series-round-section { display: flex; flex-direction: column; gap: 16px; }
 .series-round-heading {
   font-family: "Anton", sans-serif;
   font-size: 28px;
@@ -352,6 +352,19 @@ body {
   margin: 0;
   padding-bottom: 6px;
   border-bottom: 2px solid var(--ink);
+}
+.series-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.series-subheading {
+  margin: 0;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-soft);
 }
 .series-stack { display: flex; flex-direction: column; gap: 14px; }
 
@@ -363,12 +376,15 @@ body {
 .series-card[open] { box-shadow: var(--shadow-lg); }
 .series-card.done { background: #f7fff3; }
 .series-card.live { background: #fff5ef; }
+.series-card.scheduled { background: #f6f8ff; }
+.series-card.watch { background: #fffdfa; }
+.series-card.dead { background: #f7f2f0; opacity: 0.86; }
 
 .series-summary {
   list-style: none;
   cursor: pointer;
   display: grid;
-  grid-template-columns: 140px 1fr auto auto 24px;
+  grid-template-columns: 180px minmax(220px, 1fr) minmax(170px, auto) auto 24px;
   align-items: center;
   gap: 16px;
   padding: 14px 18px;
@@ -380,6 +396,7 @@ body {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-soft);
+  line-height: 1.35;
 }
 .series-matchup {
   font-family: "Anton", sans-serif;
@@ -406,6 +423,8 @@ body {
   text-align: right;
 }
 .series-card.done .series-status { color: var(--ok); font-weight: 700; }
+.series-card.live .series-status { color: var(--accent); font-weight: 700; }
+.series-card.dead .series-status { color: var(--wrong); font-weight: 700; }
 .series-count {
   font-family: "JetBrains Mono", monospace;
   font-size: 11px;
@@ -431,7 +450,7 @@ body {
 }
 .series-player-row {
   display: grid;
-  grid-template-columns: 26px 110px 1fr auto;
+  grid-template-columns: 26px 110px minmax(220px, 1fr) 74px auto;
   align-items: center;
   gap: 12px;
   padding: 10px 0;
@@ -451,6 +470,11 @@ body {
 .series-player-row.wrong .sp-icon { color: var(--wrong); }
 .series-player-row.pending .sp-icon { color: var(--ink-soft); }
 .series-player-row.eliminated .sp-icon { color: var(--wrong); opacity: 0.5; }
+.series-player-row.correct-exact .sp-result,
+.series-player-row.correct-winner .sp-result { color: var(--ok); font-weight: 700; }
+.series-player-row.correct-length .sp-result { color: var(--accent); font-weight: 700; }
+.series-player-row.wrong .sp-result,
+.series-player-row.eliminated .sp-result { color: var(--wrong); font-weight: 700; }
 .series-player-row .sp-name {
   font-family: "Anton", sans-serif;
   font-size: 20px;
@@ -460,6 +484,13 @@ body {
 .series-player-row .sp-pick {
   font-family: "DM Sans", sans-serif;
   font-size: 15px;
+  color: var(--ink-soft);
+}
+.series-player-row .sp-result {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: var(--ink-soft);
 }
 .series-player-row .sp-pick strong {
@@ -527,11 +558,13 @@ body {
     grid-template-columns: 22px 1fr auto;
     grid-template-areas:
       "icon name pts"
-      ".    pick pick";
+      ".    pick pick"
+      ".    result result";
     gap: 4px 10px;
   }
   .series-player-row .sp-icon { grid-area: icon; }
   .series-player-row .sp-name { grid-area: name; font-size: 17px; }
   .series-player-row .sp-pick { grid-area: pick; }
+  .series-player-row .sp-result { grid-area: result; }
   .series-player-row .sp-pts  { grid-area: pts; }
 }

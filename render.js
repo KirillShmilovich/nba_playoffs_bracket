@@ -9,6 +9,15 @@ const STATUS_ICON = {
   "eliminated":     "✗"
 };
 
+const STATUS_LABEL = {
+  "correct-exact":  "Exact",
+  "correct-winner": "Winner",
+  "correct-length": "Length",
+  "wrong":          "Wrong",
+  "pending":        "Pending",
+  "eliminated":     "Out"
+};
+
 const ROUND_LABELS = {
   round1: "Round 1",
   round2: "Conference Semifinals",
@@ -18,6 +27,16 @@ const ROUND_LABELS = {
 
 function teamDisplay(abbr) {
   return TEAM_NAMES[abbr] || abbr;
+}
+
+function formatGameDate(iso) {
+  if (!iso) return "soon";
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
 }
 
 function pickLine(pickResult) {
@@ -96,24 +115,35 @@ export function renderLeaderboard(rows) {
   return `<div class="leaderboard">${header}${body}</div>`;
 }
 
-function seriesStatusLabel(actual) {
-  if (!actual) return "Not in play";
+function seriesStatusLabel(entry) {
+  const { actual } = entry;
+  if (!actual) {
+    const hasLivePath = entry.picks.some(p => p.result.status !== "eliminated");
+    return hasLivePath ? "Waiting on bracket path" : "Impossible";
+  }
   if (actual.complete) {
-    return `${teamDisplay(actual.winner)} def. ${teamDisplay(actual.loser)} in ${actual.games}`;
+    return `Final · ${teamDisplay(actual.winner)} in ${actual.games} (${4}-${actual.games - 4})`;
   }
   const [a, b] = actual.matchup;
-  return `In progress · ${a} ${actual.currentScore || ""} ${b}`;
+  if (actual.started) {
+    return `In progress · ${teamDisplay(a)} ${actual.currentScore || ""} ${teamDisplay(b)}`;
+  }
+  return `Scheduled · ${formatGameDate(actual.nextGameDate)}`;
 }
 
-function seriesStatusClass(actual) {
-  if (!actual) return "idle";
+function seriesStatusClass(entry) {
+  const { actual } = entry;
+  if (!actual) {
+    return entry.picks.some(p => p.result.status !== "eliminated") ? "watch" : "dead";
+  }
   if (actual.complete) return "done";
-  return "live";
+  return actual.started ? "live" : "scheduled";
 }
 
 function playerRow(p) {
   const cls = `series-player-row ${p.result.status}`;
   const icon = STATUS_ICON[p.result.status] || "·";
+  const label = STATUS_LABEL[p.result.status] || "Pending";
   const ptsText = p.result.points > 0
     ? `+${p.result.points}`
     : (p.result.status === "pending" ? "—" : "0");
@@ -121,16 +151,17 @@ function playerRow(p) {
     <div class="${cls}">
       <span class="sp-icon">${icon}</span>
       <span class="sp-name">${p.name}</span>
-      <span class="sp-pick"><strong>${teamDisplay(p.pick.winner)}</strong> in ${p.pick.games}</span>
+      <span class="sp-pick"><strong>${teamDisplay(p.pick.winner)}</strong> in ${p.pick.games} <span>over ${teamDisplay(p.pick.loser)}</span></span>
+      <span class="sp-result">${label}</span>
       <span class="sp-pts">${ptsText}</span>
     </div>
   `;
 }
 
-function seriesCard(entry, roundLabel) {
+function seriesCard(entry, roundLabel, kindLabel) {
   const [a, b] = entry.matchup;
-  const statusCls = seriesStatusClass(entry.actual);
-  const statusLabel = seriesStatusLabel(entry.actual);
+  const statusCls = seriesStatusClass(entry);
+  const statusLabel = seriesStatusLabel(entry);
   const picked = entry.picks.length;
 
   const picks = entry.picks
@@ -140,13 +171,13 @@ function seriesCard(entry, roundLabel) {
     .join("");
 
   const emptyNote = picked === 0
-    ? `<div class="series-empty">No one picked this matchup</div>`
+    ? `<div class="series-empty">No one picked this exact matchup</div>`
     : "";
 
   return `
     <details class="series-card ${statusCls}">
       <summary class="series-summary">
-        <span class="series-round">${roundLabel}</span>
+        <span class="series-round">${roundLabel} · ${kindLabel}</span>
         <span class="series-matchup">
           <strong>${teamDisplay(a)}</strong>
           <span class="vs">vs</span>
@@ -164,16 +195,31 @@ function seriesCard(entry, roundLabel) {
   `;
 }
 
+function renderSeriesSubsection(title, entries, roundLabel, kindLabel) {
+  if (!entries.length) return "";
+  const cards = entries.map(e => seriesCard(e, roundLabel, kindLabel)).join("");
+  return `
+    <div class="series-subsection">
+      <h4 class="series-subheading">${title}</h4>
+      <div class="series-stack">${cards}</div>
+    </div>
+  `;
+}
+
 export function renderSeriesView(seriesByRound) {
   const rounds = ["round1", "round2", "confFinals", "finals"];
   const sections = rounds.map(round => {
     const entries = seriesByRound[round] || [];
     if (!entries.length) return "";
-    const cards = entries.map(e => seriesCard(e, ROUND_LABELS[round])).join("");
+    const officialEntries = entries.filter(e => e.actual);
+    const pickOnlyEntries = entries.filter(e => !e.actual);
+    const official = renderSeriesSubsection("Official series", officialEntries, ROUND_LABELS[round], "Official");
+    const watchlist = renderSeriesSubsection("Prediction watchlist", pickOnlyEntries, ROUND_LABELS[round], "Prediction");
     return `
       <div class="series-round-section">
         <h3 class="series-round-heading">${ROUND_LABELS[round]}</h3>
-        <div class="series-stack">${cards}</div>
+        ${official}
+        ${watchlist}
       </div>
     `;
   }).join("");

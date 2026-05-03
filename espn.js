@@ -32,8 +32,8 @@ function pairKey(a, b) {
 }
 
 /**
- * Group an array of completed playoff games into series.
- * Each game has: round, teamA (abbr), teamB (abbr), winnerAbbr.
+ * Group an array of playoff games into series.
+ * Each game has: round, teamA (abbr), teamB (abbr), winnerAbbr, completed, date.
  * Returns normalized LIVE object.
  */
 export function buildSeriesFromGames(games) {
@@ -45,17 +45,21 @@ export function buildSeriesFromGames(games) {
     const teamA = canonicalAbbr(g.teamA);
     const teamB = canonicalAbbr(g.teamB);
     const winnerAbbr = canonicalAbbr(g.winnerAbbr);
+    const completed = g.completed === undefined ? !!winnerAbbr : g.completed;
     if (!VALID_TEAMS.has(teamA) || !VALID_TEAMS.has(teamB)) continue;
     const key = pairKey(teamA, teamB);
     const bucket = bucketByRound[g.round];
     let s = bucket.get(key);
     if (!s) {
-      s = { matchup: [teamA, teamB].sort(), wins: {} };
+      s = { matchup: [teamA, teamB].sort(), wins: {}, nextGameDate: null };
       s.wins[teamA] = 0;
       s.wins[teamB] = 0;
       bucket.set(key, s);
     }
-    if (winnerAbbr === teamA || winnerAbbr === teamB) {
+    if (!completed && g.date && (!s.nextGameDate || g.date < s.nextGameDate)) {
+      s.nextGameDate = g.date;
+    }
+    if (completed && (winnerAbbr === teamA || winnerAbbr === teamB)) {
       s.wins[winnerAbbr] = (s.wins[winnerAbbr] || 0) + 1;
     }
   }
@@ -69,10 +73,13 @@ export function buildSeriesFromGames(games) {
       const winner = !complete ? null : (winsA > winsB ? teamA : teamB);
       const loser  = !complete ? null : (winsA > winsB ? teamB : teamA);
       const games  = !complete ? null : winsA + winsB;
+      const started = winsA + winsB > 0;
       const series = {
         matchup: [teamA, teamB],
         winner, loser, games, complete,
-        currentScore: `${winsA}-${winsB}`
+        currentScore: `${winsA}-${winsB}`,
+        started,
+        nextGameDate: !complete && s.nextGameDate ? s.nextGameDate : null
       };
       if (round === "finals") result.finals = series;
       else result[round].push(series);
@@ -98,7 +105,6 @@ export function normalizeEspn(rawEventsOrScoreboard) {
     if (seasonType !== 3 && seasonType !== "3") continue;
     const comp = (e.competitions && e.competitions[0]) || {};
     const completed = comp.status?.type?.completed === true;
-    if (!completed) continue;
     const competitors = comp.competitors || [];
     if (competitors.length < 2) continue;
     const a = competitors[0];
@@ -107,10 +113,10 @@ export function normalizeEspn(rawEventsOrScoreboard) {
     const abbrB = canonicalAbbr(b.team?.abbreviation);
     if (!abbrA || !abbrB) continue;
     const winnerAbbr = a.winner === true ? abbrA : (b.winner === true ? abbrB : null);
-    if (!winnerAbbr) continue;
+    if (completed && !winnerAbbr) continue;
     const headline = (comp.notes && comp.notes[0] && comp.notes[0].headline) || "";
     const round = detectRound(headline);
-    games.push({ round, teamA: abbrA, teamB: abbrB, winnerAbbr });
+    games.push({ round, teamA: abbrA, teamB: abbrB, winnerAbbr, completed, date: e.date || null });
   }
 
   return buildSeriesFromGames(games);
