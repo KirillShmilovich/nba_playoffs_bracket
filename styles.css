@@ -151,6 +151,7 @@ body {
   text-align: right;
 }
 .leaderboard-row.header .num { font-size: 12px; font-weight: 400; }
+.leaderboard-row .short-label { display: none; }
 .leaderboard-row.leader {
   background: linear-gradient(90deg, #fff 0%, #ffe6db 100%);
 }
@@ -532,11 +533,15 @@ body {
 }
 
 @media (max-width: 640px) {
-  .leaderboard-row { grid-template-columns: 48px 1fr 70px 70px; gap: 10px; padding: 12px; }
-  .leaderboard-row .max-col { display: none; }
-  .leaderboard-row .rank { font-size: 32px; }
-  .leaderboard-row .name { font-size: 20px; }
-  .leaderboard-row .num { font-size: 16px; }
+  .leaderboard-row { grid-template-columns: 34px minmax(62px, 1fr) 38px 46px 46px; gap: 5px; padding: 12px 8px; }
+  .leaderboard-row .rank { font-size: 30px; }
+  .leaderboard-row .name { font-size: 18px; }
+  .leaderboard-row .num { font-size: 15px; }
+  .leaderboard-row.header .rank,
+  .leaderboard-row.header .name,
+  .leaderboard-row.header .num { font-size: 10px; }
+  .leaderboard-row.header .full-label { display: none; }
+  .leaderboard-row.header .short-label { display: inline; }
 
   .brackets-head { padding-right: clamp(20px, 4vw, 64px); }
   .series-summary {

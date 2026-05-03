@@ -95,9 +95,9 @@ export function renderLeaderboard(rows) {
     <div class="leaderboard-row header">
       <span class="rank">#</span>
       <span class="name">Player</span>
-      <span class="num">Current</span>
-      <span class="num max-col">Max</span>
-      <span class="num">Correct</span>
+      <span class="num"><span class="full-label">Current</span><span class="short-label">Pts</span></span>
+      <span class="num possible-col" title="Total possible score"><span class="full-label">Possible</span><span class="short-label">Max</span></span>
+      <span class="num"><span class="full-label">Correct</span><span class="short-label">Hit</span></span>
     </div>
   `;
   const body = sorted.map((r, i) => {
@@ -107,7 +107,7 @@ export function renderLeaderboard(rows) {
         <span class="rank">${i + 1}</span>
         <span class="name">${r.name}</span>
         <span class="num">${r.current}</span>
-        <span class="num max-col">${r.max}</span>
+        <span class="num possible-col" title="${r.name} total possible score">${r.max}</span>
         <span class="num">${r.correctCount}/${r.totalCompleted || 0}</span>
       </div>
     `;

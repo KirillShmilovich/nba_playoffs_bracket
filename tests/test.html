@@ -10,6 +10,7 @@
 import { scoreSeries, scoreBracket, isEliminated, ROUND_POINTS, buildSeriesView } from '../scoring.js';
 import { normalizeEspn, buildSeriesFromGames } from '../espn.js';
 import { PICKS, TEAM_NAMES } from '../picks.js';
+import { renderLeaderboard } from '../render.js';
 
 const results = document.getElementById('results');
 let passed = 0, failed = 0;
@@ -129,6 +130,15 @@ assertEq(scoredR1.current, 3, "R1 done: current = 3 (OKC exact +2, HOU length-on
 assertEq(scoredR1.max, 14, "R1 done: max includes length-only + alive future picks");
 assertEq(scoredR1.correctCount, 1, "R1 done: 1 correct-winner series (length-only doesn't count)");
 assertEq(scoredR1.totalCompleted, 2, "R1 done: 2 completed series");
+
+// --- render tests ---
+const leaderboardHtml = renderLeaderboard([
+  { name: "Tester", current: 3, max: 14, correctCount: 1, totalCompleted: 2 },
+  { name: "Chaser", current: 2, max: 18, correctCount: 1, totalCompleted: 2 }
+]);
+assertEq(leaderboardHtml.includes("Possible"), true, "leaderboard: shows possible score column");
+assertEq(leaderboardHtml.includes("Tester total possible score"), true, "leaderboard: possible score is labeled");
+assertEq(leaderboardHtml.includes('<span class="num possible-col" title="Tester total possible score">14</span>'), true, "leaderboard: renders total possible score");
 
 // --- picks integrity tests ---
 function sortedUnique(values) {
