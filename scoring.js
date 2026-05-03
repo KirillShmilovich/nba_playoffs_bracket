@@ -126,7 +126,7 @@ export function buildSeriesView(picksByName, live) {
         }
         const entry = matchups.get(key);
         const result = scoreSeries(p, entry.actual, round);
-        if (entry.actual && !entry.actual.complete) {
+        if (!entry.actual || !entry.actual.complete) {
           if (isEliminated(p.winner, live) || isEliminated(p.loser, live)) {
             result.status = "eliminated";
           }

@@ -6,7 +6,7 @@ const VALID_TEAMS = new Set([
 ]);
 
 // ESPN sometimes abbreviates teams differently than we do. Map to our canonical form.
-const ABBR_FIX = { "NY": "NYK", "NYK": "NYK" };
+const ABBR_FIX = { "NY": "NYK", "SA": "SAS" };
 
 const PLAYOFFS_START = "20260418";
 const PLAYOFFS_END   = "20260701";
@@ -21,7 +21,7 @@ function detectRound(headline) {
   if (!headline) return null;
   const h = headline.toLowerCase();
   if (h.includes("nba finals") || h === "finals" || h.startsWith("finals -")) return "finals";
-  if (h.includes("conf. finals") || h.includes("conference finals") || h.includes("conf finals")) return "confFinals";
+  if (h.includes("conf. finals") || h.includes("conference finals") || h.includes("conf finals") || /\b(east|west) finals\b/.test(h)) return "confFinals";
   if (h.includes("conf. semifinals") || h.includes("conference semifinals") || h.includes("conf semifinals") || h.includes("2nd round") || h.includes("semifinals")) return "round2";
   if (h.includes("1st round") || h.includes("first round")) return "round1";
   return null;
@@ -42,17 +42,22 @@ export function buildSeriesFromGames(games) {
 
   for (const g of games) {
     if (!g.round || !bucketByRound[g.round]) continue;
-    if (!VALID_TEAMS.has(g.teamA) || !VALID_TEAMS.has(g.teamB)) continue;
-    const key = pairKey(g.teamA, g.teamB);
+    const teamA = canonicalAbbr(g.teamA);
+    const teamB = canonicalAbbr(g.teamB);
+    const winnerAbbr = canonicalAbbr(g.winnerAbbr);
+    if (!VALID_TEAMS.has(teamA) || !VALID_TEAMS.has(teamB)) continue;
+    const key = pairKey(teamA, teamB);
     const bucket = bucketByRound[g.round];
     let s = bucket.get(key);
     if (!s) {
-      s = { matchup: [g.teamA, g.teamB].sort(), wins: {} };
-      s.wins[g.teamA] = 0;
-      s.wins[g.teamB] = 0;
+      s = { matchup: [teamA, teamB].sort(), wins: {} };
+      s.wins[teamA] = 0;
+      s.wins[teamB] = 0;
       bucket.set(key, s);
     }
-    if (g.winnerAbbr) s.wins[g.winnerAbbr] = (s.wins[g.winnerAbbr] || 0) + 1;
+    if (winnerAbbr === teamA || winnerAbbr === teamB) {
+      s.wins[winnerAbbr] = (s.wins[winnerAbbr] || 0) + 1;
+    }
   }
 
   for (const round of Object.keys(bucketByRound)) {

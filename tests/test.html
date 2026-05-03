@@ -7,8 +7,9 @@
 <h1>Bracket Tracker Tests</h1>
 <div id="results"></div>
 <script type="module">
-import { scoreSeries, scoreBracket, isEliminated, ROUND_POINTS } from '../scoring.js';
+import { scoreSeries, scoreBracket, isEliminated, ROUND_POINTS, buildSeriesView } from '../scoring.js';
 import { normalizeEspn, buildSeriesFromGames } from '../espn.js';
+import { PICKS, TEAM_NAMES } from '../picks.js';
 
 const results = document.getElementById('results');
 let passed = 0, failed = 0;
@@ -129,6 +130,67 @@ assertEq(scoredR1.max, 14, "R1 done: max includes length-only + alive future pic
 assertEq(scoredR1.correctCount, 1, "R1 done: 1 correct-winner series (length-only doesn't count)");
 assertEq(scoredR1.totalCompleted, 2, "R1 done: 2 completed series");
 
+// --- picks integrity tests ---
+function sortedUnique(values) {
+  return [...new Set(values)].sort();
+}
+
+function teamListForRound(picksInRound) {
+  return sortedUnique(picksInRound.flatMap(p => [p.winner, p.loser]));
+}
+
+function validatePickSet(name, picks) {
+  const errors = [];
+  const expectedCounts = { round1: 8, round2: 4, confFinals: 2 };
+  for (const [round, expected] of Object.entries(expectedCounts)) {
+    if (!Array.isArray(picks[round]) || picks[round].length !== expected) {
+      errors.push(`${name} ${round} has ${picks[round]?.length ?? 0} picks`);
+    }
+    for (const pick of picks[round] || []) {
+      if (!TEAM_NAMES[pick.winner]) errors.push(`${name} ${round} unknown winner ${pick.winner}`);
+      if (!TEAM_NAMES[pick.loser]) errors.push(`${name} ${round} unknown loser ${pick.loser}`);
+      if (pick.winner === pick.loser) errors.push(`${name} ${round} repeats team ${pick.winner}`);
+      if (!Number.isInteger(pick.games) || pick.games < 4 || pick.games > 7) {
+        errors.push(`${name} ${round} invalid length ${pick.games}`);
+      }
+    }
+  }
+
+  if (!picks.finals) {
+    errors.push(`${name} missing finals pick`);
+  } else {
+    if (!TEAM_NAMES[picks.finals.winner]) errors.push(`${name} finals unknown winner ${picks.finals.winner}`);
+    if (!TEAM_NAMES[picks.finals.loser]) errors.push(`${name} finals unknown loser ${picks.finals.loser}`);
+    if (picks.finals.winner === picks.finals.loser) errors.push(`${name} finals repeats team ${picks.finals.winner}`);
+    if (!Number.isInteger(picks.finals.games) || picks.finals.games < 4 || picks.finals.games > 7) {
+      errors.push(`${name} finals invalid length ${picks.finals.games}`);
+    }
+  }
+
+  const r1Winners = sortedUnique((picks.round1 || []).map(p => p.winner));
+  const r2Teams = teamListForRound(picks.round2 || []);
+  if (JSON.stringify(r2Teams) !== JSON.stringify(r1Winners)) {
+    errors.push(`${name} round2 teams do not match round1 winners`);
+  }
+
+  const r2Winners = sortedUnique((picks.round2 || []).map(p => p.winner));
+  const cfTeams = teamListForRound(picks.confFinals || []);
+  if (JSON.stringify(cfTeams) !== JSON.stringify(r2Winners)) {
+    errors.push(`${name} conference finals teams do not match round2 winners`);
+  }
+
+  const cfWinners = sortedUnique((picks.confFinals || []).map(p => p.winner));
+  const finalsTeams = picks.finals ? sortedUnique([picks.finals.winner, picks.finals.loser]) : [];
+  if (JSON.stringify(finalsTeams) !== JSON.stringify(cfWinners)) {
+    errors.push(`${name} finals teams do not match conference finals winners`);
+  }
+
+  return errors;
+}
+
+const pickIntegrityErrors = Object.entries(PICKS).flatMap(([name, picks]) => validatePickSet(name, picks));
+assertEq(pickIntegrityErrors, [], "PICKS integrity: counts, teams, lengths, and advancement paths");
+
 // --- normalizeEspn tests ---
 assertEq(
   normalizeEspn(null),
@@ -204,6 +266,60 @@ assertEq(outNY.round1.length, 1, "normalizeEspn: NY mapped to NYK");
 assertEq(outNY.round1[0].winner, "NYK", "normalizeEspn: winner NYK");
 assertEq(outNY.round1[0].loser, "ATL", "normalizeEspn: loser ATL");
 assertEq(outNY.round1[0].games, 4, "normalizeEspn: sweep 4 games");
+
+// SA → SAS mapping
+const saMapping = {
+  events: [
+    fakeEvent("SA","POR","SA","West 1st Round - Game 1"),
+    fakeEvent("SA","POR","SA","West 1st Round - Game 2"),
+    fakeEvent("SA","POR","SA","West 1st Round - Game 3"),
+    fakeEvent("SA","POR","SA","West 1st Round - Game 4")
+  ]
+};
+const outSA = normalizeEspn(saMapping);
+assertEq(outSA.round1.length, 1, "normalizeEspn: SA mapped to SAS");
+assertEq(outSA.round1[0].winner, "SAS", "normalizeEspn: winner SAS");
+assertEq(outSA.round1[0].loser, "POR", "normalizeEspn: loser POR");
+assertEq(outSA.round1[0].games, 4, "normalizeEspn: Spurs sweep counted");
+
+const directGamesSA = buildSeriesFromGames([
+  { round: "round1", teamA: "SA", teamB: "POR", winnerAbbr: "SA" },
+  { round: "round1", teamA: "SA", teamB: "POR", winnerAbbr: "POR" }
+]);
+assertEq(directGamesSA.round1[0].matchup, ["POR","SAS"], "buildSeriesFromGames: canonicalizes SA input");
+assertEq(directGamesSA.round1[0].currentScore, "1-1", "buildSeriesFromGames: canonicalized current score");
+
+// ESPN uses East/West Finals, not just Conference Finals
+const eastFinalsSample = {
+  events: [
+    fakeEvent("DET","BOS","DET","East Finals - Game 1"),
+    fakeEvent("DET","BOS","DET","East Finals - Game 2"),
+    fakeEvent("DET","BOS","DET","East Finals - Game 3"),
+    fakeEvent("DET","BOS","DET","East Finals - Game 4")
+  ]
+};
+const outEastFinals = normalizeEspn(eastFinalsSample);
+assertEq(outEastFinals.confFinals.length, 1, "normalizeEspn: East Finals mapped to conference finals");
+assertEq(outEastFinals.confFinals[0].winner, "DET", "normalizeEspn: East Finals winner DET");
+
+// --- buildSeriesView tests ---
+const impossibleSeriesView = buildSeriesView({
+  "Tester": {
+    round1: [],
+    round2: [{ winner: "OKC", loser: "HOU", games: 5 }],
+    confFinals: [],
+    finals: null
+  }
+}, {
+  round1: [
+    { matchup: ["HOU","LAL"], winner: "LAL", loser: "HOU", games: 6, complete: true }
+  ],
+  round2: [],
+  confFinals: [],
+  finals: null
+});
+const impossibleRound2 = impossibleSeriesView.round2.find(e => e.matchup.join("|") === "HOU|OKC");
+assertEq(impossibleRound2.picks[0].result.status, "eliminated", "buildSeriesView: unmatched impossible picks are eliminated");
 
 document.title = `${failed === 0 ? 'PASS' : 'FAIL'} ${passed}/${passed + failed}`;
 results.insertAdjacentHTML('afterbegin', `<h2>${passed} passed, ${failed} failed</h2>`);
